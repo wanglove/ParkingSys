@@ -3,7 +3,7 @@ from flask_restful import Resource,reqparse,fields,marshal_with
 from time import localtime,strftime
 
 '''
---------------------------------会员卡资源------------------------------------
+--------------------------------会员卡资源(by wanglei)------------------------------------
 1.查询会员卡信息
   URI:/cards/<string:cardno>
   GET方法
