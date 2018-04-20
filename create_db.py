@@ -1,7 +1,7 @@
 from models import *
 
 '''
-***************数据库创建*******************
+***************数据库创建(by lei ge)*******************
 1.进入mysql创建数据库parking,root用户登录mysql数据库执行以下语句:
   CREATE DATABASE parking CHARSET=UTF8
 2.在config.py配置数据库连接
