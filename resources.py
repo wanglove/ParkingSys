@@ -44,8 +44,8 @@ class CardsRc(Resource):
     def __init__(self):
         self.parser = reqparse.RequestParser()
         self.parser.add_argument('cardno', type=str)
-        self.parser.add_argument('balance', type=int)
         self.parser.add_argument('type',type=str)
+        self.parser.add_argument('balance', type=int)
         self.parser.add_argument('status', type=str)
         self.parser.add_argument('username', type=str)
         self.parser.add_argument('activedate',type=str)
@@ -263,7 +263,7 @@ class FeeRc(Resource):
 '''
 ---------------------------------充值记录资源-------------------------------------
 1.查询充值记录
-  URI:/cards/<int:cardnum>/RechargeRecords
+  URI:/cards/<sting:cardnum>/RechargeRecords
   GET方法
   参数(param):starttime,endtime
 '''

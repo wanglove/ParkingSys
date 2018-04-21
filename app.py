@@ -15,6 +15,7 @@ from resources import *
 
 # 挂载资源到路径上
 api.add_resource(CardsRc, '/v1/cards', '/v1/cards/<string:cardno>')
+api.add_resource(RechargeRecordsRc,'/cards/<sting:cardnum>/RechargeRecords')
 
 if __name__ == '__main__':
     app.run()
