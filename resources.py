@@ -271,16 +271,40 @@ RechargeRecords_fields = {
     'error_code': fields.String,
     'reason': fields.String,
     'data': {
+        'recordid': fields.Integer,
         'cardno': fields.String,
-        'balance': fields.Integer,
-        'opendate': fields.DateTime(dt_format='iso8601'),
-        'activedate': fields.DateTime(dt_format='iso8601'),
-        'closedate': fields.DateTime(dt_format='iso8601'),
-        'remark': fields.String,
+        'fee': fields.Integer,
+        'operatetime': fields.DateTime(dt_format='iso8601')
     }
 }
 class RechargeRecordsRc(Resource):
+    def __init__(self):
+        self.parser = reqparse.RequestParser()
+        self.parser.add_argument('starttime', type=str)  #开始时间
+        self.parser.add_argument('endtime',type=str)     #结束时间
+        self.parser.add_argument('limit', type=int)      #查询记录数
+
+        # 校验输入的参数是否合法
+    def checkArgs(self, cardno=None, args=None):
+        # URL中的参数
+        if cardno is not None:
+            if cardno.isdigit() == False or len(cardno) != 6:
+                return ErrorCode(400, '卡号必须是6位数字字符组成')
+
+        # HTTP URL中的 查询参数
+        if args is not None:
+            if args.cardno:
+                if args.cardno.isdigit() == False or len(args.cardno) != 6:
+                    return ErrorCode(400, '卡号必须是6位数字字符组成')
+            if args.balance:
+                if args.balance <= 0 or args.balance > 9999 \
+                        or isinstance(args.balance, int) == False:
+                    return ErrorCode(400, '金额必须是(0,9999]的整数')
+
+    #查询充值记录
+    @marshal_with(RechargeRecords_fields)
     def get(self):
+
         return
 
 
