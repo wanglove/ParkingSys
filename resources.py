@@ -284,7 +284,7 @@ class RechargeRecordsRc(Resource):
         self.parser.add_argument('endtime',type=str)     #结束时间
         self.parser.add_argument('limit', type=int)      #查询记录数
 
-        # 校验输入的参数是否合法
+    # 校验输入的参数是否合法
     def checkArgs(self, cardno=None, args=None):
         # URL中的参数
         if cardno is not None:
@@ -293,13 +293,17 @@ class RechargeRecordsRc(Resource):
 
         # HTTP URL中的 查询参数
         if args is not None:
-            if args.cardno:
+            if args.starttime:
+                if args.starttime.isdigit() == False or len(args.starttime) != 6:
+                    return ErrorCode(400, '卡号必须是6位数字字符组成')
+                if args.endtime:
                 if args.cardno.isdigit() == False or len(args.cardno) != 6:
                     return ErrorCode(400, '卡号必须是6位数字字符组成')
-            if args.balance:
-                if args.balance <= 0 or args.balance > 9999 \
-                        or isinstance(args.balance, int) == False:
-                    return ErrorCode(400, '金额必须是(0,9999]的整数')
+
+            if args.limit:
+                if args.limit <= 0 or args.limit > 5 \
+                        or isinstance(args.limit, int) == False:
+                    return ErrorCode(400, '查询条目数最多5条')
 
     #查询充值记录
     @marshal_with(RechargeRecords_fields)
