@@ -273,13 +273,9 @@ RechargeRecords_fields = {
     'data': {
         'cardno': fields.String,
         'balance': fields.Integer,
-        'type': fields.String,
-        'status': fields.String,
         'opendate': fields.DateTime(dt_format='iso8601'),
         'activedate': fields.DateTime(dt_format='iso8601'),
         'closedate': fields.DateTime(dt_format='iso8601'),
-        'username': fields.String,
-        'userphone': fields.String,
         'remark': fields.String,
     }
 }
