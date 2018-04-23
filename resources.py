@@ -267,16 +267,26 @@ class FeeRc(Resource):
   GET方法
   参数(param):starttime,endtime
 '''
+# data_fields = {}
+# data_fields['recordid'] = fields.Integer
+# data_fields['cardno'] = fields.String
+# data_fields['fee'] = fields.String
+# data_fields['operatetime'] = fields.DateTime(dt_format='iso8601')
+
+
+data_fields = {
+    'recordid': fields.Integer,
+    'cardno': fields.String,
+    'fee': fields.String,
+    'operatetime': fields.DateTime(dt_format='iso8601')
+}
+
 RechargeRecords_fields = {
     'error_code': fields.String,
     'reason': fields.String,
-    'data': {
-        'recordid': fields.Integer,
-        'cardno': fields.String,
-        'fee': fields.Integer,
-        'operatetime': fields.DateTime(dt_format='iso8601')
-    }
+    'data': fields.List(fields.Nested(data_fields))
 }
+
 class RechargeRecordsRc(Resource):
     def __init__(self):
         self.parser = reqparse.RequestParser()
@@ -294,20 +304,37 @@ class RechargeRecordsRc(Resource):
         # HTTP URL中的 查询参数
         if args is not None:
             if args.starttime:
-                if args.starttime.isdigit() == False or len(args.starttime) != 6:
-                    return ErrorCode(400, '卡号必须是6位数字字符组成')
-                if args.endtime:
-                if args.cardno.isdigit() == False or len(args.cardno) != 6:
-                    return ErrorCode(400, '卡号必须是6位数字字符组成')
+                if args.starttime.isdigit() == False or len(args.starttime) != 8:
+                    return ErrorCode(400, '日期必须8为数字字符组成')
+
+            if args.endtime:
+                if args.cardno.isdigit() == False or len(args.cardno) != 8:
+                    return ErrorCode(400, '日期必须8为数字字符组成')
 
             if args.limit:
                 if args.limit <= 0 or args.limit > 5 \
                         or isinstance(args.limit, int) == False:
                     return ErrorCode(400, '查询条目数最多5条')
+            else:
+                args.limit = 5         #默认值最多查询5条
 
     #查询充值记录
     @marshal_with(RechargeRecords_fields)
-    def get(self):
+    def get(self,cardno):
+        #解析URL中的查询参数
+        args = self.parser.parse_args()
+
+        #校验查询参数格式
+        errorCode = self.checkArgs(cardno,args)
+        if errorCode is not None:
+            return errorCode
+
+        # 查询充值记录表中最近5笔记录
+        result = RechargeRecords.query.filter_by(cardno=cardno) \
+            .order_by(RechargeRecords.recordid.desc()).limit(args.limit).all()
+
+        if result:
+            return {'data':[{'recordid':1},{'recordid':2}]}
 
         return
 
