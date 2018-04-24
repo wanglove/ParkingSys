@@ -282,9 +282,9 @@ data_fields = {
 }
 
 RechargeRecords_fields = {
-    'error_code': fields.String,
-    'reason': fields.String,
-    'data': fields.List(fields.Nested(data_fields))
+    'error_code': fields.String(default='200'),
+    'reason': fields.String(default='查询成功'),
+    'data': fields.List(fields.Nested(data_fields))   #数组
 }
 
 class RechargeRecordsRc(Resource):
@@ -330,13 +330,14 @@ class RechargeRecordsRc(Resource):
             return errorCode
 
         # 查询充值记录表中最近5笔记录
-        result = RechargeRecords.query.filter_by(cardno=cardno) \
+        result = RechargeRecords.query\
+            .filter(RechargeRecords.cardno==cardno,RechargeRecords.operatetime>='20180420') \
             .order_by(RechargeRecords.recordid.desc()).limit(args.limit).all()
 
         if result:
-            return {'data':[{'recordid':1},{'recordid':2}]}
-
-        return
+            return {'data':result}
+        else:
+            return ErrorCode(404,'无记录')
 
 
 '''
