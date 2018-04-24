@@ -267,17 +267,17 @@ class FeeRc(Resource):
   GET方法
   参数(param):starttime,endtime
 '''
-data_fields = {
+RechargeRecords_data_fields = {
     'recordid': fields.Integer,
     'cardno': fields.String,
-    'fee': fields.String,
+    'fee': fields.Integer,
     'operatetime': fields.DateTime(dt_format='iso8601')
 }
 
 RechargeRecords_fields = {
     'error_code': fields.String(default='200'),
     'reason': fields.String(default='查询成功'),
-    'data': fields.List(fields.Nested(data_fields))   #数组
+    'data': fields.List(fields.Nested(RechargeRecords_data_fields))   #数组
 }
 
 class RechargeRecordsRc(Resource):
@@ -358,10 +358,83 @@ class RechargeRecordsRc(Resource):
   GET方法
   参数(param):starttime,endtime
 '''
-class ConsumedRecordsRc(Resource):
-    def get(self):
-        return
+ConsumedRecords_data_fields = {
+    'recordid': fields.Integer,
+    'cardno': fields.String,
+    'carno': fields.String,
+    'entertime': fields.DateTime(dt_format='iso8601'),
+    'leavetime': fields.DateTime(dt_format='iso8601'),
+    'totaltime': fields.Integer,
+    'promotioncode': fields.String,
+    'fee': fields.Integer
+}
 
+ConsumedRecords_fields = {
+    'error_code': fields.String(default='200'),
+    'reason': fields.String(default='查询成功'),
+    'data': fields.List(fields.Nested(ConsumedRecords_data_fields))   #数组
+}
+
+class ConsumedRecordsRc(Resource):
+    def __init__(self):
+        self.parser = reqparse.RequestParser()
+        self.parser.add_argument('starttime', type=str)  #开始时间
+        self.parser.add_argument('endtime',type=str)     #结束时间
+
+    # 校验输入的参数是否合法
+    def checkArgs(self, cardno=None, args=None):
+        # URL中的参数
+        if cardno is not None:
+            if cardno.isdigit() == False or len(cardno) != 6:
+                return ErrorCode(400, '卡号必须是6位数字字符组成')
+
+        # HTTP URL中的 查询参数
+        if args is not None:
+            if args.starttime:
+                if args.starttime.isdigit() == False or len(args.starttime) != 8:
+                    return ErrorCode(400, '开始日期必须8为数字字符组成')
+            else:
+                return ErrorCode(400, '开始日期不能为空')
+
+            if args.endtime:
+                if args.endtime.isdigit() == False or len(args.endtime) != 8:
+                    return ErrorCode(400, '结束日期必须8为数字字符组成')
+            else:
+                return ErrorCode(400, '结束日期不能为空')
+
+            if args.starttime > args.endtime:
+                return ErrorCode(400, '开始日期不能大于结束日期')
+
+            today = strftime("%Y%m%d", localtime())
+            if args.endtime > today:
+                return ErrorCode(400, '结束日期不能大于当前日期%s'%today)
+            #结束时间等于当前日期+1处理才可以正确查到当前时间的记录
+            if args.endtime == today:
+                args.endtime = str(int(today)+1)
+        else:
+            return ErrorCode(400, '查询参数不能为空')
+
+    @marshal_with(ConsumedRecords_fields)
+    def get(self,cardno):
+        #解析URL中的查询参数
+        args = self.parser.parse_args()
+
+        #校验查询参数格式
+        errorCode = self.checkArgs(cardno,args)
+        if errorCode is not None:
+            return errorCode
+
+        #按车离场时间查询消费记录表中所有记录
+        result = ConsumedRecords.query\
+            .filter(ConsumedRecords.cardno==cardno,\
+                    ConsumedRecords.leavetime>=args.starttime,\
+                    ConsumedRecords.leavetime<=args.endtime)\
+            .order_by(ConsumedRecords.recordid.desc()).all()
+
+        if result:
+            return {'data':result}
+        else:
+            return ErrorCode(404,'卡号不存在或者无消费记录')
 
 '''
 -------------------------------------优惠券资源-----------------------------------------
