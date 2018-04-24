@@ -267,13 +267,6 @@ class FeeRc(Resource):
   GET方法
   参数(param):starttime,endtime
 '''
-# data_fields = {}
-# data_fields['recordid'] = fields.Integer
-# data_fields['cardno'] = fields.String
-# data_fields['fee'] = fields.String
-# data_fields['operatetime'] = fields.DateTime(dt_format='iso8601')
-
-
 data_fields = {
     'recordid': fields.Integer,
     'cardno': fields.String,
@@ -305,11 +298,25 @@ class RechargeRecordsRc(Resource):
         if args is not None:
             if args.starttime:
                 if args.starttime.isdigit() == False or len(args.starttime) != 8:
-                    return ErrorCode(400, '日期必须8为数字字符组成')
+                    return ErrorCode(400, '开始日期必须8为数字字符组成')
+            else:
+                return ErrorCode(400, '开始日期不能为空')
 
             if args.endtime:
-                if args.cardno.isdigit() == False or len(args.cardno) != 8:
-                    return ErrorCode(400, '日期必须8为数字字符组成')
+                if args.endtime.isdigit() == False or len(args.endtime) != 8:
+                    return ErrorCode(400, '结束日期必须8为数字字符组成')
+            else:
+                return ErrorCode(400, '结束日期不能为空')
+
+            if args.starttime > args.endtime:
+                return ErrorCode(400, '开始日期不能大于结束日期')
+
+            today = strftime("%Y%m%d", localtime())
+            if args.endtime > today:
+                return ErrorCode(400, '结束日期不能大于当前日期%s'%today)
+            #结束时间等于当前日期+1处理才可以正确查到当前时间的记录
+            if args.endtime == today:
+                args.endtime = str(int(today)+1)
 
             if args.limit:
                 if args.limit <= 0 or args.limit > 5 \
@@ -317,6 +324,8 @@ class RechargeRecordsRc(Resource):
                     return ErrorCode(400, '查询条目数最多5条')
             else:
                 args.limit = 5         #默认值最多查询5条
+        else:
+            return ErrorCode(400, '查询参数不能为空')
 
     #查询充值记录
     @marshal_with(RechargeRecords_fields)
@@ -329,15 +338,17 @@ class RechargeRecordsRc(Resource):
         if errorCode is not None:
             return errorCode
 
-        # 查询充值记录表中最近5笔记录
+        #按开始时间结束时间查询充值记录表中记录
         result = RechargeRecords.query\
-            .filter(RechargeRecords.cardno==cardno,RechargeRecords.operatetime>='20180420') \
+            .filter(RechargeRecords.cardno==cardno,\
+                    RechargeRecords.operatetime>=args.starttime, \
+                    RechargeRecords.operatetime<=args.endtime) \
             .order_by(RechargeRecords.recordid.desc()).limit(args.limit).all()
 
         if result:
             return {'data':result}
         else:
-            return ErrorCode(404,'无记录')
+            return ErrorCode(404,'卡号不存在或者无充值记录')
 
 
 '''
