@@ -439,25 +439,85 @@ class ConsumedRecordsRc(Resource):
 '''
 -------------------------------------优惠券资源-----------------------------------------
 1.查询优惠券
-  URI:/promotions/<int:code>
+  URI:/promotions/<string:promotionCode>
   URI:/promotions
   GET方法
   
 2.新建一个优惠券
   URI:/promotions/
   POST方法
-  参数(body):优惠券号码(可选填，系统随机产生),优惠时长(必填)
+  参数(body):优惠时长time(必填)
   
 3.删除优惠券
-  URI:/promotions/<int:code>
+  URI:/promotions/<string:promotionCode>
   DELETE方法
 '''
+Promotions_data_fields = {
+    'promotioncode': fields.String,
+    'time': fields.Integer,
+    'status': fields.String,
+    'remark': fields.String
+}
+
+Promotions_fields = {
+    'error_code': fields.String(default='200'),
+    'reason': fields.String(default='查询成功'),
+    'data': fields.List(fields.Nested(Promotions_data_fields))   #数组
+}
+
 class PromotionsRc(Resource):
-    def get(self):
-        return
+    def __init__(self):
+        self.parser = reqparse.RequestParser()
+        self.parser.add_argument('time', type=int)    #优惠券时间2小时或24小时
 
+    #校验输入的参数是否合法
+    def checkArgs(self, PromotionCode=None, args=None):
+        # URL中的参数
+        if PromotionCode is not None:
+            if PromotionCode.isdigit() == False or len(PromotionCode) != 9:
+                return ErrorCode(400, '优惠券号码必须是9位数字字符组成')
+
+        # HTTP Body中的 查询参数
+        if args is not None:
+            if args.time:
+                if args.time != 2 and args.time !=4:
+                    return ErrorCode(400, '优惠券时长只能选2或者24')
+
+    @marshal_with(Promotions_fields)
+    def get(self, promotionCode=None):
+        #校验参数格式
+        errorCode = self.checkArgs(promotionCode)
+        if errorCode is not None:
+            return errorCode
+
+        if promotionCode:
+            result = Promotions.query.get(promotionCode)
+            if result:
+                return {'data':[result]}
+            else:
+                return ErrorCode(404,'优惠券号码不存在')
+        else:
+            result = Promotions.query.all()
+            if result:
+                return {'data':result}
+            else:
+                return ErrorCode(404,'没有任何优惠券')
+
+    @marshal_with(Promotions_fields)
     def post(self):
+        #解析URL中的查询参数
+        args = self.parser.parse_args()
+        #校验参数格式
+        errorCode = self.checkArgs(None,args)
+        if errorCode is not None:
+            return errorCode
         return
 
-    def delete(self):
+    @marshal_with(Promotions_fields)
+    def delete(self,promotionCode):
+        #校验参数格式
+        errorCode = self.checkArgs(promotionCode)
+        if errorCode is not None:
+            return errorCode
+
         return
