@@ -36,7 +36,7 @@ class Promotions(db.Model):
     promotioncode = db.Column(db.String(9),primary_key=True) #优惠券码
     time = db.Column(db.Integer, nullable=False)             #优惠时长 只有2小时或24小时
     status = db.Column(db.String(1), nullable=False)         #优惠券状态 0-无效 1-有效
-    remark = db.Column(db.String(50), nullable=False)        #备注
+    remark = db.Column(db.String(50))                        #备注
 
 '''停车计费表'''
 class ParkingFee(db.Model):

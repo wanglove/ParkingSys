@@ -444,7 +444,7 @@ class ConsumedRecordsRc(Resource):
   GET方法
   
 2.新建一个优惠券
-  URI:/promotions/
+  URI:/promotions
   POST方法
   参数(body):优惠时长time(必填)
   
@@ -480,7 +480,7 @@ class PromotionsRc(Resource):
         # HTTP Body中的 查询参数
         if args is not None:
             if args.time:
-                if args.time != 2 and args.time !=4:
+                if args.time != 2 and args.time !=24:
                     return ErrorCode(400, '优惠券时长只能选2或者24')
 
     @marshal_with(Promotions_fields)
@@ -490,6 +490,7 @@ class PromotionsRc(Resource):
         if errorCode is not None:
             return errorCode
 
+        #按优惠券号码查询
         if promotionCode:
             result = Promotions.query.get(promotionCode)
             if result:
@@ -497,21 +498,40 @@ class PromotionsRc(Resource):
             else:
                 return ErrorCode(404,'优惠券号码不存在')
         else:
+        #查询所有优惠券
             result = Promotions.query.all()
             if result:
                 return {'data':result}
             else:
                 return ErrorCode(404,'没有任何优惠券')
 
+    #***************新建一张优惠券************************
     @marshal_with(Promotions_fields)
     def post(self):
         #解析URL中的查询参数
         args = self.parser.parse_args()
+
         #校验参数格式
+        if args.time is None:
+            return ErrorCode(400, '优惠券时长必须填写')
+
         errorCode = self.checkArgs(None,args)
         if errorCode is not None:
             return errorCode
-        return
+
+        #获取优惠券号码
+        Promotion = Promotions.query.order_by(Promotions.promotioncode.desc()).first()
+        if Promotion:
+            newPromotionCode = str(int(Promotion.promotioncode)+1)
+        else:
+            newPromotionCode = '100000001'
+
+        newPromotion = Promotions(promotioncode=newPromotionCode,time=args.time,status='0')
+        db.session.add(newPromotion)
+        db.session.commit()
+
+        return {'error_code':'201','reason':'新优惠券创建成功','data':[newPromotion]}
+
 
     @marshal_with(Promotions_fields)
     def delete(self,promotionCode):
@@ -520,4 +540,10 @@ class PromotionsRc(Resource):
         if errorCode is not None:
             return errorCode
 
-        return
+        Promotion = Promotions.query.get(promotionCode)
+        if Promotion:
+            db.session.delete(Promotion)
+            db.session.commit()
+            return ErrorCode(200, '删除成功')
+        else:
+            return ErrorCode(404,'优惠券不存在')
