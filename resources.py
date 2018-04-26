@@ -236,16 +236,16 @@ class CardsRc(Resource):
 '''
 --------------------------------停车费资源------------------------------------
 1.停车进场
-  URI:/cards/<int:cardno>/fee
+  URI:/cards/<string:cardno>/fee
   POST方法
   参数(body):车牌号carno
   
 2.查询停车费
-  URI:/cards/<int:cardno>/fee
+  URI:/cards/<string:cardno>/fee
   GET方法
   
 3.离场缴费
-  URI:/cards/<int:cardno>/fee
+  URI:/cards/<string:cardno>/fee
   参数(body):优惠券promotioncode(可选择)
   DELETE方法
 '''
@@ -483,6 +483,7 @@ class PromotionsRc(Resource):
                 if args.time != 2 and args.time !=24:
                     return ErrorCode(400, '优惠券时长只能选2或者24')
 
+    #**************查询优惠券**********************
     @marshal_with(Promotions_fields)
     def get(self, promotionCode=None):
         #校验参数格式
@@ -532,7 +533,7 @@ class PromotionsRc(Resource):
 
         return {'error_code':'201','reason':'新优惠券创建成功','data':[newPromotion]}
 
-
+    #*************删除优惠券*******************
     @marshal_with(Promotions_fields)
     def delete(self,promotionCode):
         #校验参数格式
@@ -544,6 +545,6 @@ class PromotionsRc(Resource):
         if Promotion:
             db.session.delete(Promotion)
             db.session.commit()
-            return ErrorCode(200, '删除成功')
+            return ErrorCode(204, '删除成功')
         else:
             return ErrorCode(404,'优惠券不存在')

@@ -44,6 +44,10 @@ class ParkingFee(db.Model):
     cardno = db.Column(db.String(6), primary_key=True)   #卡号
     carno = db.Column(db.String(10), unique=True)        #车牌号
     entertime = db.Column(db.DateTime, nullable=False)   #进场时间
+    leavetime = db.Column(db.DateTime)                   #预计离场时间
+    totaltime = db.Column(db.Integer)                    #停车时长(分钟)
+    promotioncode = db.Column(db.String(9))              #优惠券码
+    fee = db.Column(db.Integer)                          #停车费用
 
 '''消费流水表'''
 class ConsumedRecords(db.Model):
