@@ -1,9 +1,9 @@
 from models import *
 from flask_restful import Resource,reqparse,fields,marshal_with
-from time import localtime,strftime
+from time import localtime,strftime,time,mktime,strptime
 
 '''
---------------------------------会员卡资源(by wanglei)------------------------------------
+--------------------------------会员卡资源------------------------------------
 1.查询会员卡信息
   URI:/cards/<string:cardno>
   GET方法
@@ -235,30 +235,222 @@ class CardsRc(Resource):
 
 '''
 --------------------------------停车费资源------------------------------------
-1.停车进场
+1.查询停车费
+  URI:/cards/<string:cardno>/fee
+  GET方法
+
+2.停车进场
   URI:/cards/<string:cardno>/fee
   POST方法
   参数(body):车牌号carno
-  
-2.查询停车费
-  URI:/cards/<string:cardno>/fee
-  GET方法
-  
+   
 3.离场缴费
   URI:/cards/<string:cardno>/fee
-  参数(body):优惠券promotioncode(可选择)
   DELETE方法
 '''
+Fee_data_fields = {
+    'cardno': fields.String,
+    'carno': fields.String,
+    'entertime': fields.DateTime(dt_format='iso8601'),
+    'leavetime': fields.DateTime(dt_format='iso8601'),
+    'totaltime': fields.Integer,
+    'promotioncode': fields.String,
+    'fee': fields.Integer
+}
+ParkingFee__fields = {
+    'error_code': fields.String(default='200'),
+    'reason': fields.String(default='查询成功'),
+    'data': fields.Nested(Fee_data_fields)
+}
 class FeeRc(Resource):
-    def get(self):
-        return
+    def __init__(self):
+        self.parser = reqparse.RequestParser()
+        self.parser.add_argument('promotioncode', type=str)  #优惠券号码
+        self.parser.add_argument('carno',type=str)           #车牌号
 
-    def post(self):
-        return
+    #****************查询停车费(可选优惠券)*********************
+    '''
+    15分钟内免费停车
+    金卡会员2元/小时,每24小时收费24元封顶(12小时计费封顶)
+    银卡会员3元/小时,每24小时收费36元封顶(12小时计费封顶)
+    临时卡4元/小时,每24小时收费48元封顶(12小时计费封顶)
+    '''
+    @marshal_with(ParkingFee__fields)
+    def get(self,cardno):
 
-    def delete(self):
-        return
+        #设置收费规则
+        jinka_fee = 2
+        yinka_fee = 3
+        lska_fee = 4
 
+        #解析的POST参数
+        args = self.parser.parse_args()
+
+        #检查cardno是否合法
+        if cardno is not None:
+            if cardno.isdigit() == False or len(cardno) != 6:
+                return ErrorCode('400', '卡号必须是6位数字字符组成')
+
+        #根据卡号查询数据库表cards
+        card = Cards.query.get(cardno)
+        if card is None:
+            return ErrorCode('404', '卡号不存在')
+
+        #根据卡号查询计费表
+        parkingFee = ParkingFee.query.get(cardno)
+        if parkingFee is None:
+            return ErrorCode('404', '无车辆持此卡入场')
+
+        #如果使用优惠券,查询优惠券优惠时间
+        if args.promotioncode is not None:
+            promotion = Promotions.query.get(args.promotioncode)
+            if promotion:
+                if promotion.status == '1':
+                    return ErrorCode('403','优惠券已被使用')
+            else:
+                return ErrorCode('404', '优惠券不存在')
+
+        #将入场时间转换成以秒计算的时间
+        enterTimeSeconds = mktime(strptime(parkingFee.entertime, "%Y-%m-%d %H:%M:%S"))
+        #查询截至时间转换成秒
+        endtimeSeconds = time()
+
+        #停车时间(秒)
+        parkingTimeSeconds = endtimeSeconds - enterTimeSeconds
+
+        #先减去15分钟免费期
+        parkingTimeSeconds -= 15*60
+
+        #减去优惠券时间
+        if args.promotioncode is not None:
+            parkingTimeSeconds -= promotion.time*3600
+
+        #如果小于，把它置为0，方便以下计算
+        if parkingTimeSeconds < 0:
+            parkingTimeSeconds = 0
+
+        #要计费的小时数
+        chargingHours = 0
+
+        #算算车停了一共几天
+        parkingDays=parkingTimeSeconds//(3600*24)
+        if parkingDays > 0:
+            chargingHours = parkingDays*12 #每天最多计费12小时
+
+        #不足一天的计算
+        lastDaySeconds=parkingTimeSeconds%(3600*24)
+        if lastDaySeconds >= 3600*12:     #不足一天大于12小时,按12小时计费
+            chargingHours += 12
+        if lastDaySeconds > 0 and lastDaySeconds < 3600*12:  #最后一天停车小于12小时
+            if lastDaySeconds%3600 != 0:
+                chargingHours += (lastDaySeconds//3600 + 1)
+
+        #临时卡计费,临时卡，银卡，金卡分别计费
+        if card.type == '0':
+            fee = chargingHours*lska_fee
+        elif card.type == '1':
+            fee = chargingHours*yinka_fee
+        else:
+            fee = chargingHours*jinka_fee
+
+        parkingFee.leavetime = strftime("%Y-%m-%d %H:%M:%S", endtimeSeconds)
+        parkingFee.totaltime = parkingTimeSeconds
+        if args.promotioncode is not None:
+            parkingFee.promotioncode = args.promotioncode
+        parkingFee.fee = fee
+
+        db.session.commit()
+
+        return {'data': {parkingFee}}
+
+    #*********************入场停车*************************
+    @marshal_with(ParkingFee__fields)
+    def post(self,cardno):
+        #解析的POST参数
+        args = self.parser.parse_args()
+        #参数校验
+        if cardno is not None:
+            if cardno.isdigit() == False or len(cardno) != 6:
+                return ErrorCode('400', '卡号必须是6位数字字符组成')
+        else:
+            return ErrorCode('400', '请输入停车卡号')
+
+        if args.carno is None:
+            return ErrorCode('400', '车牌号必须输入')
+
+        if len(args.carno) > 10:
+            return ErrorCode('100', '车牌号长度必须小于10')
+
+        #根据卡号查询数据库表cards
+        card = Cards.query.get(cardno)
+        if card is None:
+            return ErrorCode('404', '卡号不存在')
+        #未激活销户的卡不能停车
+        if card.status == '0' and card.status == '2':
+            return ErrorCode('403', '未激活或销户卡不能停车')
+
+        #获取当前时间
+        nowTime = strftime("%Y-%m-%d %H:%M:%S", localtime())
+
+        parkingFee = ParkingFee(cardno=cardno,carno=args.carno,entertime=nowTime)
+
+        db.session.add(parkingFee)
+        db.session.commit()
+
+        return {'error_code' :'201','reason': '入场成功','data': {parkingFee}}
+
+    #********************离场缴费*********************
+    @marshal_with(ParkingFee__fields)
+    def delete(self,cardno):
+        #参数校验
+        if cardno is not None:
+            if cardno.isdigit() == False or len(cardno) != 6:
+                return ErrorCode('400', '卡号必须是6位数字字符组成')
+
+        #根据卡号查询计费表
+        parkingFee = ParkingFee.query.get(cardno)
+        if parkingFee is None:
+            return ErrorCode('404', '无车辆持此卡入场')
+
+        if parkingFee.leavetime is None:
+            return ErrorCode('403', '车辆立场前请先查询车辆停车费用')
+
+        #根据卡号查询数据库表cards
+        card = Cards.query.get(cardno)
+        if card is None:
+            return ErrorCode('404', '卡号不存在')
+
+        #检查优惠券
+        if parkingFee.promotioncode is not None:
+            promotion = Promotions.query.get(parkingFee.promotioncode)
+            if promotion:
+                if promotion.status == '1':
+                    return ErrorCode('403','优惠券已被使用')
+                promotion.status = '1'        #优惠券状态设置为已经使用
+            else:
+                return ErrorCode('404', '优惠券不存在')
+
+        #银行和金卡，扣除卡余额后才可以缴费离开,临时卡直接现金缴费
+        if card.type != '0':
+            if card.balance < parkingFee.fee:
+                return ErrorCode('403','卡余额不足，请充值后在缴费离场')
+            #卡上扣款
+            card.balance -= parkingFee.fee    #卡扣款
+
+        #插入消费流水
+        consumedRecord = ConsumedRecords(cardno=parkingFee.cardno,\
+                                         carno=parkingFee.carno,\
+                                         entertime=parkingFee.entertime, \
+                                         leavetime=parkingFee.leavetime, \
+                                         totaltime=parkingFee.totaltime, \
+                                         promotioncode=parkingFee.promotioncode,\
+                                         fee=parkingFee.fee)
+        db.session.add(consumedRecord)
+        #删除计费表中的记录
+        db.session.delete(parkingFee)
+        db.session.commit()
+
+        return {'error_code' :'201','reason': '离场缴费成功','data': {consumedRecord}}
 
 '''
 ---------------------------------充值记录资源-------------------------------------
@@ -292,24 +484,24 @@ class RechargeRecordsRc(Resource):
         # URL中的参数
         if cardno is not None:
             if cardno.isdigit() == False or len(cardno) != 6:
-                return ErrorCode(400, '卡号必须是6位数字字符组成')
+                return ErrorCode('400', '卡号必须是6位数字字符组成')
 
         # HTTP URL中的 查询参数
         if args is not None:
             if args.starttime:
                 if args.starttime.isdigit() == False or len(args.starttime) != 8:
-                    return ErrorCode(400, '开始日期必须8为数字字符组成')
+                    return ErrorCode('400', '开始日期必须8为数字字符组成')
             else:
-                return ErrorCode(400, '开始日期不能为空')
+                return ErrorCode('400', '开始日期不能为空')
 
             if args.endtime:
                 if args.endtime.isdigit() == False or len(args.endtime) != 8:
-                    return ErrorCode(400, '结束日期必须8为数字字符组成')
+                    return ErrorCode('400', '结束日期必须8为数字字符组成')
             else:
-                return ErrorCode(400, '结束日期不能为空')
+                return ErrorCode('400', '结束日期不能为空')
 
             if args.starttime > args.endtime:
-                return ErrorCode(400, '开始日期不能大于结束日期')
+                return ErrorCode('400', '开始日期不能大于结束日期')
 
             today = strftime("%Y%m%d", localtime())
             if args.endtime > today:
