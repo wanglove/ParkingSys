@@ -44,12 +44,12 @@ class CardsRc(Resource):
     def __init__(self):
         self.parser = reqparse.RequestParser()
         self.parser.add_argument('cardno', type=str)
-        self.parser.add_argument('type',type=str)
+        self.parser.add_argument('type', type=str)
         self.parser.add_argument('balance', type=int)
         self.parser.add_argument('status', type=str)
         self.parser.add_argument('username', type=str)
-        self.parser.add_argument('activedate',type=str)
-        self.parser.add_argument('userphone',type=str)
+        self.parser.add_argument('activedate', type=str)
+        self.parser.add_argument('userphone', type=str)
         self.parser.add_argument('remark', type=str)
 
     #校验输入的参数是否合法
@@ -311,7 +311,7 @@ class FeeRc(Resource):
                 return ErrorCode('404', '优惠券不存在')
 
         #将入场时间转换成以秒计算的时间
-        enterTimeSeconds = mktime(strptime(parkingFee.entertime, "%Y-%m-%d %H:%M:%S"))
+        enterTimeSeconds = mktime(strptime(str(parkingFee.entertime), "%Y-%m-%d %H:%M:%S"))
         #查询截至时间转换成秒
         endtimeSeconds = time()
 
@@ -353,15 +353,15 @@ class FeeRc(Resource):
         else:
             fee = chargingHours*jinka_fee
 
-        parkingFee.leavetime = strftime("%Y-%m-%d %H:%M:%S", endtimeSeconds)
-        parkingFee.totaltime = parkingTimeSeconds
+        parkingFee.leavetime = strftime("%Y-%m-%d %H:%M:%S", localtime(endtimeSeconds))
+        parkingFee.totaltime = endtimeSeconds - enterTimeSeconds
         if args.promotioncode is not None:
             parkingFee.promotioncode = args.promotioncode
         parkingFee.fee = fee
 
         db.session.commit()
 
-        return {'data': {parkingFee}}
+        return {'data': parkingFee}
 
     #*********************入场停车*************************
     @marshal_with(ParkingFee__fields)
@@ -389,6 +389,11 @@ class FeeRc(Resource):
         if card.status == '0' and card.status == '2':
             return ErrorCode('403', '未激活或销户卡不能停车')
 
+        #卡正在使用中，不能重复入场
+        isUse = ParkingFee.query.get(cardno)
+        if isUse:
+            return ErrorCode(403, '此卡正在消费中,不能重复使用')
+
         #获取当前时间
         nowTime = strftime("%Y-%m-%d %H:%M:%S", localtime())
 
@@ -397,7 +402,7 @@ class FeeRc(Resource):
         db.session.add(parkingFee)
         db.session.commit()
 
-        return {'error_code' :'201','reason': '入场成功','data': {parkingFee}}
+        return {'error_code': '201', 'reason': '入场成功', 'data': parkingFee}
 
     #********************离场缴费*********************
     @marshal_with(ParkingFee__fields)
@@ -450,7 +455,7 @@ class FeeRc(Resource):
         db.session.delete(parkingFee)
         db.session.commit()
 
-        return {'error_code' :'201','reason': '离场缴费成功','data': {consumedRecord}}
+        return {'error_code': '204', 'reason': '离场缴费成功', 'data': consumedRecord}
 
 '''
 ---------------------------------充值记录资源-------------------------------------
