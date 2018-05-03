@@ -117,7 +117,7 @@ class CardsRc(Resource):
         #如果卡号已经存在，报错
         result = Cards.query.get(args.cardno)
         if result is not None:
-            return ErrorCode(400,'卡号已存在')
+            return ErrorCode('403', '卡号已存在')
 
         #生成开卡时间
         myDateTime = strftime("%Y-%m-%d %H:%M:%S", localtime())
@@ -135,7 +135,7 @@ class CardsRc(Resource):
 
         #办理停车卡成功，返回卡信息数据，并且设置返回码为201
         result = Cards.query.get(args.cardno)
-        return  result.setErrorCode(201,'开卡成功')
+        return  result.setErrorCode(201, '开卡成功')
 
     #******************销户功能，停车卡充值功能**********************
     @marshal_with(Cards_fields)
@@ -208,7 +208,7 @@ class CardsRc(Resource):
         #默认返回无效请求错误
         return ErrorCode(400)
 
-    #****************彻底删除卡信息**********************
+    #****************彻底删除卡以及充值消费记录**********************
     #销户的卡才可以删除
     @marshal_with(Cards_fields)
     def delete(self,cardno):
@@ -224,7 +224,7 @@ class CardsRc(Resource):
             return ErrorCode(404, '卡号不存在')
         #金卡和银行在销户状态才可以删除
         if card.type != '0' and card.status != '2':
-            return ErrorCode(404, '此卡未销户')
+            return ErrorCode(403, '此卡未销户')
 
         db.session.delete(card)
         #删除卡充值记录和消费记录
@@ -379,7 +379,7 @@ class FeeRc(Resource):
             return ErrorCode('400', '车牌号必须输入')
 
         if len(args.carno) > 10:
-            return ErrorCode('100', '车牌号长度必须小于10')
+            return ErrorCode('400', '车牌号长度必须小于10')
 
         #根据卡号查询数据库表cards
         card = Cards.query.get(cardno)
@@ -390,9 +390,14 @@ class FeeRc(Resource):
             return ErrorCode('403', '未激活或销户卡不能停车')
 
         #卡正在使用中，不能重复入场
-        isUse = ParkingFee.query.get(cardno)
-        if isUse:
-            return ErrorCode(403, '此卡正在消费中,不能重复使用')
+        isCardInUse = ParkingFee.query.get(cardno)
+        if isCardInUse:
+            return ErrorCode('403', '此卡正在消费中,不能重复使用')
+
+        #防止套牌车入场，一个车牌号只能入场一次
+        isCarnoInUse = ParkingFee.query.filter_by(carno=args.carno).first()
+        if isCarnoInUse:
+            return ErrorCode('403', '车牌号与已入场车辆车牌号相同')
 
         #获取当前时间
         nowTime = strftime("%Y-%m-%d %H:%M:%S", localtime())
@@ -551,7 +556,7 @@ class RechargeRecordsRc(Resource):
 '''
 ---------------------------------会员卡消费记录资源--------------------------------------
 1.查询会员卡消费记录
-  URI:/cards/<int:cardnum>/ConsumedRecords
+  URI:/cards/<int:cardnum>/consumedrecords
   GET方法
   参数(param):starttime,endtime
 '''
