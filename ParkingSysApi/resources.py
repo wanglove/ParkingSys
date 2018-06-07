@@ -1,6 +1,6 @@
-from models import *
-from flask_restful import Resource,reqparse,fields,marshal_with
-from time import localtime,strftime,time,mktime,strptime
+from ParkingSysApi.models import *
+from flask_restful import Resource, reqparse, fields, marshal_with
+from time import localtime, strftime, time, mktime, strptime
 
 '''
 --------------------------------会员卡资源------------------------------------
@@ -39,6 +39,7 @@ Cards_fields = {
         'remark': fields.String,
     }
 }
+
 
 class CardsRc(Resource):
     def __init__(self):
@@ -99,9 +100,9 @@ class CardsRc(Resource):
         result = Cards.query.get(cardno)
         if result:
             #成功查到，返回结果数据，并且设置返回码为200
-            return result.setErrorCode(200,'卡信息查询成功')
+            return result.setErrorCode(200, '卡信息查询成功')
         else:
-            return ErrorCode(404,'卡号不存在')
+            return ErrorCode(404, '卡号不存在')
 
     #*****************办理停车卡*****************
     @marshal_with(Cards_fields)
@@ -172,7 +173,7 @@ class CardsRc(Resource):
             card.balance = 0               #余额退还客户,变更为0
             card.closedate = myDateTime
             db.session.commit()
-            return card.setErrorCode(201,'销户成功')
+            return card.setErrorCode(201, '销户成功')
 
         #金额参数存在就执行充值
         if args.balance == 0:
@@ -203,10 +204,10 @@ class CardsRc(Resource):
             rechargeRecord=RechargeRecords(cardno=cardno,fee=args.balance,operatetime=myDateTime)
             db.session.add(rechargeRecord)
             db.session.commit()
-            return card.setErrorCode(201,'充值成功')
+            return card.setErrorCode(201, '充值成功')
 
         #默认返回无效请求错误
-        return ErrorCode(400)
+        return ErrorCode(400, '无效请求')
 
     #****************彻底删除卡以及充值消费记录**********************
     #销户的卡才可以删除
@@ -266,7 +267,7 @@ class FeeRc(Resource):
     def __init__(self):
         self.parser = reqparse.RequestParser()
         self.parser.add_argument('promotioncode', type=str)  #优惠券号码
-        self.parser.add_argument('carno',type=str)           #车牌号
+        self.parser.add_argument('carno', type=str)           #车牌号
 
     #****************查询停车费(可选优惠券)*********************
     '''
@@ -306,7 +307,7 @@ class FeeRc(Resource):
             promotion = Promotions.query.get(args.promotioncode)
             if promotion:
                 if promotion.status == '1':
-                    return ErrorCode('403','优惠券已被使用')
+                    return ErrorCode('403', '优惠券已被使用')
             else:
                 return ErrorCode('404', '优惠券不存在')
 
@@ -443,7 +444,7 @@ class FeeRc(Resource):
         #银行和金卡，扣除卡余额后才可以缴费离开,临时卡直接现金缴费
         if card.type != '0':
             if card.balance < parkingFee.fee:
-                return ErrorCode('403','卡余额不足，请充值后在缴费离场')
+                return ErrorCode('403', '卡余额不足，请充值后在缴费离场')
             #卡上扣款
             card.balance -= parkingFee.fee    #卡扣款
 
@@ -548,9 +549,9 @@ class RechargeRecordsRc(Resource):
             .order_by(RechargeRecords.recordid.desc()).limit(args.limit).all()
 
         if result:
-            return {'data':result}
+            return {'data': result}
         else:
-            return ErrorCode(404,'卡号不存在或者无充值记录')
+            return ErrorCode(404, '卡号不存在或者无充值记录')
 
 
 '''
@@ -634,9 +635,9 @@ class ConsumedRecordsRc(Resource):
             .order_by(ConsumedRecords.recordid.desc()).all()
 
         if result:
-            return {'data':result}
+            return {'data': result}
         else:
-            return ErrorCode(404,'卡号不存在或者无消费记录')
+            return ErrorCode(404, '卡号不存在或者无消费记录')
 
 '''
 -------------------------------------优惠券资源-----------------------------------------
@@ -697,16 +698,16 @@ class PromotionsRc(Resource):
         if promotionCode:
             result = Promotions.query.get(promotionCode)
             if result:
-                return {'data':[result]}
+                return {'data': [result]}
             else:
-                return ErrorCode(404,'优惠券号码不存在')
+                return ErrorCode(404, '优惠券号码不存在')
         else:
         #查询所有优惠券
             result = Promotions.query.all()
             if result:
-                return {'data':result}
+                return {'data': result}
             else:
-                return ErrorCode(404,'没有任何优惠券')
+                return ErrorCode(404, '没有任何优惠券')
 
     #***************新建一张优惠券************************
     @marshal_with(Promotions_fields)
@@ -718,7 +719,7 @@ class PromotionsRc(Resource):
         if args.time is None:
             return ErrorCode(400, '优惠券时长必须填写')
 
-        errorCode = self.checkArgs(None,args)
+        errorCode = self.checkArgs(None, args)
         if errorCode is not None:
             return errorCode
 
@@ -729,11 +730,11 @@ class PromotionsRc(Resource):
         else:
             newPromotionCode = '100000001'
 
-        newPromotion = Promotions(promotioncode=newPromotionCode,time=args.time,status='0')
+        newPromotion = Promotions(promotioncode=newPromotionCode, time=args.time, status='0')
         db.session.add(newPromotion)
         db.session.commit()
 
-        return {'error_code':'201','reason':'新优惠券创建成功','data':[newPromotion]}
+        return {'error_code': '201', 'reason': '新优惠券创建成功', 'data': [newPromotion]}
 
     #*************删除优惠券*******************
     @marshal_with(Promotions_fields)
@@ -749,4 +750,4 @@ class PromotionsRc(Resource):
             db.session.commit()
             return ErrorCode(204, '删除成功')
         else:
-            return ErrorCode(404,'优惠券不存在')
+            return ErrorCode(404, '优惠券不存在')

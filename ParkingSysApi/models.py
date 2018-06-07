@@ -1,4 +1,6 @@
-from app import db
+from flask_sqlalchemy import SQLAlchemy
+
+db = SQLAlchemy()
 
 #停车系统用户表(系统管理员)
 class SysUser(db.Model):
@@ -33,7 +35,7 @@ class Cards(db.Model):
 '''优惠券表'''
 class Promotions(db.Model):
     __tablename__ = 'promotions'
-    promotioncode = db.Column(db.String(9),primary_key=True) #优惠券码
+    promotioncode = db.Column(db.String(9), primary_key=True) #优惠券码
     time = db.Column(db.Integer, nullable=False)             #优惠时长 只有2小时或24小时
     status = db.Column(db.String(1), nullable=False)         #优惠券状态 0-无效 1-有效
     remark = db.Column(db.String(50))                        #备注

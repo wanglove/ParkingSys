@@ -1,4 +1,4 @@
-from models import *
+from ParkingSysApi.models import *
 
 '''
 ***************数据库创建(by lei ge)*******************
