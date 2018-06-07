@@ -10,4 +10,5 @@ PyMySQL==0.8.0
 pytz==2018.4
 six==1.11.0
 SQLAlchemy==1.2.6
+tornado==5.0.2
 Werkzeug==0.14.1
