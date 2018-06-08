@@ -11,7 +11,7 @@ app.config.from_object('ParkingSysApi.config')
 db.init_app(app)
 
 #db.drop_all(app=app)
-#db.create_all(app=app)
+db.create_all(app=app)
 
 # restful Api实例api
 api = Api()
