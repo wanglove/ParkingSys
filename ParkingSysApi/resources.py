@@ -2,6 +2,35 @@ from ParkingSysApi.models import *
 from flask_restful import Resource, reqparse, fields, marshal_with
 from time import localtime, strftime, time, mktime, strptime
 
+
+# 用户授权api
+class AuthRc(Resource):
+
+    # 用户登陆接口
+    def post(self):
+
+        self.parser = reqparse.RequestParser()
+        self.parser.add_argument('username', type=str, required=True, help='用户名不能为空')
+        self.parser.add_argument('password', type=str, required=True, help='密码不能为空')
+
+        args = self.parser.parse_args()
+
+        user = SysUser.query.filter_by(username=args['username']).first()
+        # 根据用户名找不到用户，直接返回401
+        if user is None:
+            return {'error_code': '401', 'message': '用户名或密码错误'}, 401
+
+        # 用户存在，密码正确
+        if user.check_password(args['password']):
+            serializer = Serializer(
+                current_app.config['SECRET_KEY'],
+                expires_in=current_app.config['TOKEN_EXPIRES_TIME'])
+            new_token = serializer.dumps({'id': user.id}).decode()
+            return {'error_code': '201', 'message': '用户授权成功', 'token': new_token}, 201
+        # 用户存在，密码输错
+        else:
+            return {'error_code': '401', 'message': '用户名或密码错误'}, 401
+
 '''
 --------------------------------会员卡资源------------------------------------
 1.查询会员卡信息
@@ -52,6 +81,7 @@ class CardsRc(Resource):
         self.parser.add_argument('activedate', type=str)
         self.parser.add_argument('userphone', type=str)
         self.parser.add_argument('remark', type=str)
+        self.parser.add_argument('token', type=str, location='args', required=True, help='token不能为空')
 
     #校验输入的参数是否合法
     def checkArgs(self,cardno=None,args=None):
@@ -89,7 +119,13 @@ class CardsRc(Resource):
 
     #***************根据卡号查询卡信息********************
     @marshal_with(Cards_fields)
-    def get(self,cardno):
+    def get(self, cardno):
+
+        args = self.parser.parse_args()
+
+        # token检验
+        if not SysUser.verify_auth_token(args.token):
+            return ErrorCode('403', '授权过期或无效')
 
         #对输入的参数校验
         errorCode = self.checkArgs(cardno)
@@ -110,8 +146,12 @@ class CardsRc(Resource):
         #解析POST请求上送的参数
         args = self.parser.parse_args()
 
+        # token检验
+        if not SysUser.verify_auth_token(args.token):
+            return ErrorCode('403', '授权过期或无效')
+
         #对输入的参数校验
-        errorCode = self.checkArgs(None,args)
+        errorCode = self.checkArgs(None, args)
         if errorCode is not None:
             return errorCode
 
@@ -140,8 +180,12 @@ class CardsRc(Resource):
 
     #******************销户功能，停车卡充值功能**********************
     @marshal_with(Cards_fields)
-    def put(self,cardno):
+    def put(self, cardno):
         args = self.parser.parse_args()
+
+        # token检验
+        if not SysUser.verify_auth_token(args.token):
+            return ErrorCode('403', '授权过期或无效')
 
         #对输入的参数校验
         errorCode = self.checkArgs(cardno,args)
@@ -212,7 +256,13 @@ class CardsRc(Resource):
     #****************彻底删除卡以及充值消费记录**********************
     #销户的卡才可以删除
     @marshal_with(Cards_fields)
-    def delete(self,cardno):
+    def delete(self, cardno):
+
+        args = self.parser.parse_args()
+
+        # token检验
+        if not SysUser.verify_auth_token(args.token):
+            return ErrorCode('403', '授权过期或无效')
 
         #对输入的参数校验
         errorCode = self.checkArgs(cardno)
@@ -268,6 +318,7 @@ class FeeRc(Resource):
         self.parser = reqparse.RequestParser()
         self.parser.add_argument('promotioncode', type=str)  #优惠券号码
         self.parser.add_argument('carno', type=str)           #车牌号
+        self.parser.add_argument('token', type=str, location='args', required=True, help='token不能为空')
 
     #****************查询停车费(可选优惠券)*********************
     '''
@@ -286,6 +337,10 @@ class FeeRc(Resource):
 
         #解析的POST参数
         args = self.parser.parse_args()
+
+        # token检验
+        if not SysUser.verify_auth_token(args.token):
+            return ErrorCode('403', '授权过期或无效')
 
         #检查cardno是否合法
         if cardno is not None:
@@ -366,9 +421,14 @@ class FeeRc(Resource):
 
     #*********************入场停车*************************
     @marshal_with(ParkingFee__fields)
-    def post(self,cardno):
+    def post(self, cardno):
         #解析的POST参数
         args = self.parser.parse_args()
+
+        # token检验
+        if not SysUser.verify_auth_token(args.token):
+            return ErrorCode('403', '授权过期或无效')
+
         #参数校验
         if cardno is not None:
             if cardno.isdigit() == False or len(cardno) != 6:
@@ -403,7 +463,7 @@ class FeeRc(Resource):
         #获取当前时间
         nowTime = strftime("%Y-%m-%d %H:%M:%S", localtime())
 
-        parkingFee = ParkingFee(cardno=cardno,carno=args.carno,entertime=nowTime)
+        parkingFee = ParkingFee(cardno=cardno, carno=args.carno, entertime=nowTime)
 
         db.session.add(parkingFee)
         db.session.commit()
@@ -412,7 +472,14 @@ class FeeRc(Resource):
 
     #********************离场缴费*********************
     @marshal_with(ParkingFee__fields)
-    def delete(self,cardno):
+    def delete(self, cardno):
+
+        args = self.parser.parse_args()
+
+        # token检验
+        if not SysUser.verify_auth_token(args.token):
+            return ErrorCode('403', '授权过期或无效')
+
         #参数校验
         if cardno is not None:
             if cardno.isdigit() == False or len(cardno) != 6:
@@ -436,7 +503,7 @@ class FeeRc(Resource):
             promotion = Promotions.query.get(parkingFee.promotioncode)
             if promotion:
                 if promotion.status == '1':
-                    return ErrorCode('403','优惠券已被使用')
+                    return ErrorCode('403', '优惠券已被使用')
                 promotion.status = '1'        #优惠券状态设置为已经使用
             else:
                 return ErrorCode('404', '优惠券不存在')
@@ -489,6 +556,7 @@ class RechargeRecordsRc(Resource):
         self.parser.add_argument('starttime', type=str)  #开始时间
         self.parser.add_argument('endtime',type=str)     #结束时间
         self.parser.add_argument('limit', type=int)      #查询记录数
+        self.parser.add_argument('token', type=str, location='args', required=True, help='token不能为空')
 
     # 校验输入的参数是否合法
     def checkArgs(self, cardno=None, args=None):
@@ -532,12 +600,16 @@ class RechargeRecordsRc(Resource):
 
     #查询充值记录
     @marshal_with(RechargeRecords_fields)
-    def get(self,cardno):
+    def get(self, cardno):
         #解析URL中的查询参数
         args = self.parser.parse_args()
 
+        # token检验
+        if not SysUser.verify_auth_token(args.token):
+            return ErrorCode('403', '授权过期或无效')
+
         #校验查询参数格式
-        errorCode = self.checkArgs(cardno,args)
+        errorCode = self.checkArgs(cardno, args)
         if errorCode is not None:
             return errorCode
 
@@ -583,6 +655,7 @@ class ConsumedRecordsRc(Resource):
         self.parser = reqparse.RequestParser()
         self.parser.add_argument('starttime', type=str)  #开始时间
         self.parser.add_argument('endtime',type=str)     #结束时间
+        self.parser.add_argument('token', type=str, location='args', required=True, help='token不能为空')
 
     # 校验输入的参数是否合法
     def checkArgs(self, cardno=None, args=None):
@@ -621,6 +694,10 @@ class ConsumedRecordsRc(Resource):
     def get(self,cardno):
         #解析URL中的查询参数
         args = self.parser.parse_args()
+
+        # token检验
+        if not SysUser.verify_auth_token(args.token):
+            return ErrorCode('403', '授权过期或无效')
 
         #校验查询参数格式
         errorCode = self.checkArgs(cardno,args)
@@ -672,6 +749,7 @@ class PromotionsRc(Resource):
     def __init__(self):
         self.parser = reqparse.RequestParser()
         self.parser.add_argument('time', type=int)    #优惠券时间2小时或24小时
+        self.parser.add_argument('token', type=str, location='args', required=True, help='token不能为空')
 
     #校验输入的参数是否合法
     def checkArgs(self, PromotionCode=None, args=None):
@@ -715,6 +793,10 @@ class PromotionsRc(Resource):
         #解析URL中的查询参数
         args = self.parser.parse_args()
 
+        # token检验
+        if not SysUser.verify_auth_token(args.token):
+            return ErrorCode('403', '授权过期或无效')
+
         #校验参数格式
         if args.time is None:
             return ErrorCode(400, '优惠券时长必须填写')
@@ -739,6 +821,12 @@ class PromotionsRc(Resource):
     #*************删除优惠券*******************
     @marshal_with(Promotions_fields)
     def delete(self,promotionCode):
+        args = self.parser.parse_args()
+
+        # token检验
+        if not SysUser.verify_auth_token(args.token):
+            return ErrorCode('403', '授权过期或无效')
+
         #校验参数格式
         errorCode = self.checkArgs(promotionCode)
         if errorCode is not None:

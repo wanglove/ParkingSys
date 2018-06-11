@@ -1,4 +1,8 @@
 from flask_sqlalchemy import SQLAlchemy
+from uuid import uuid4
+from flask import current_app
+from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
+from itsdangerous import BadSignature, SignatureExpired
 
 db = SQLAlchemy()
 
@@ -8,6 +12,32 @@ class SysUser(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(30), unique=True)
     password = db.Column(db.String(30), nullable=False)
+
+    def __init__(self, username, password):
+        self.id = str(uuid4())
+        self.username = username
+        self.password = password
+
+    # 检查用户上传的密码
+    def check_password(self, password):
+        if password == self.password:
+            return True
+        else:
+            return False
+
+    # 校验token是否正确有效
+    def verify_auth_token(token):
+        serializer = Serializer(
+            current_app.config['SECRET_KEY'])
+        try:
+            serializer.loads(token)
+        except SignatureExpired:
+            return False
+        except BadSignature:
+            return False
+
+        return True
+
 
 '''会员卡表'''
 class Cards(db.Model):

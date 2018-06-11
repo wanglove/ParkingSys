@@ -1,7 +1,7 @@
 from flask import Flask
 from flask_restful import Api
 from ParkingSysApi.models import db
-from ParkingSysApi.resources import CardsRc, FeeRc, RechargeRecordsRc, ConsumedRecordsRc, PromotionsRc
+from ParkingSysApi.resources import AuthRc, CardsRc, FeeRc, RechargeRecordsRc, ConsumedRecordsRc, PromotionsRc
 
 # Flask App实例化,并且读取配置文件
 app = Flask(__name__)
@@ -17,6 +17,7 @@ db.create_all(app=app)
 api = Api()
 
 # 挂载资源到路径上
+api.add_resource(AuthRc, '/v1/auth')
 api.add_resource(CardsRc, '/v1/cards', '/v1/cards/<string:cardno>')
 api.add_resource(FeeRc, '/v1/cards/<string:cardno>/fee')
 api.add_resource(RechargeRecordsRc, '/v1/cards/<string:cardno>/rechargerecords')
